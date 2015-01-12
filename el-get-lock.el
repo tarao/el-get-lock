@@ -45,23 +45,27 @@
 (defvar el-get-lock-locked-packages nil)
 (defvar el-get-lock-unlocked-packages nil)
 
-(defun el-get-lock-load-package-versions ()
-  (let ((file (expand-file-name el-get-lock-file)))
-    (when (file-exists-p file)
-      (load file))))
-
-(defun el-get-lock-save-package-version (name version)
-  (let* ((name (if (stringp name) (intern name) name))
-         (pair (assq name el-get-lock-package-versions)))
-    (if pair (setcdr pair version)
-      (push (cons name version) el-get-lock-package-versions)))
+(defun el-get-lock-save ()
   (with-temp-buffer
     (let ((indent-tabs-mode nil)
           (file (expand-file-name el-get-lock-file)))
       (pp `(setq el-get-lock-package-versions
                  ',el-get-lock-package-versions)
           (current-buffer))
+      (pp `(setq el-get-lock-locked-packages
+                 ',el-get-lock-locked-packages)
+          (current-buffer))
+      (pp `(setq el-get-lock-unlocked-packages
+                 ',el-get-lock-unlocked-packages)
+          (current-buffer))
       (write-region nil nil file))))
+
+(defun el-get-lock-save-package-version (name version)
+  (let* ((name (if (stringp name) (intern name) name))
+         (pair (assq name el-get-lock-package-versions)))
+    (if pair (setcdr pair version)
+      (push (cons name version) el-get-lock-package-versions)))
+  (el-get-lock-save))
 
 (defun el-get-lock-wrap-package (package)
   (let* ((name (intern (el-get-source-name package)))
@@ -107,6 +111,14 @@
 ;; commands
 
 ;;;###autoload
+(defun el-get-lock-load ()
+  "Load `el-get-lock-file'."
+  (interactive)
+  (let ((file (expand-file-name el-get-lock-file)))
+    (when (file-exists-p file)
+      (load file))))
+
+;;;###autoload
 (defun el-get-lock (&optional packages with-dependents)
   "Lock El-Get repository versions of PACKAGES.
 
@@ -126,7 +138,7 @@ package is locked according to the value in the
   (interactive (list (el-get-lock-read-package-name "Lock") t))
   ;; TODO dependents
   (setq packages (el-get-as-list packages))
-  (el-get-lock-load-package-versions)
+  (el-get-lock-load)
   (cond
    ;; lock all
    ((null packages)
@@ -139,7 +151,8 @@ package is locked according to the value in the
       ;; lock even if explicitly unlocked
       (setq el-get-lock-unlocked-packages
             (delq package el-get-lock-unlocked-packages))
-      (add-to-list 'el-get-lock-locked-packages package)))))
+      (add-to-list 'el-get-lock-locked-packages package))))
+  (el-get-lock-save))
 
 ;;;###autoload
 (defun el-get-lock-unlock (&optional packages)
@@ -149,6 +162,7 @@ IF PACKAGES are specified, those PACKAGES are marked to be
 unlocked.  Otherwise, the all installed packages are unlocked."
   (interactive (list (el-get-lock-read-package-name "Unlock")))
   (setq packages (el-get-as-list packages))
+  (el-get-lock-load)
   (cond
    ((null packages)
     (setq el-get-lock-package-versions nil
@@ -162,7 +176,8 @@ unlocked.  Otherwise, the all installed packages are unlocked."
         (add-to-list 'el-get-lock-unlocked-packages package))
       (when (and el-get-locked-packages (null locked-packages))
         ;; there is no package locked any more; unlock all
-        (el-get-lock-unlock))))))
+        (el-get-lock-unlock)))))
+  (el-get-lock-save))
 
 (provide 'el-get-lock)
 ;;; el-get-lock.el ends here
