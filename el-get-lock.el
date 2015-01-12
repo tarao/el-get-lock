@@ -52,6 +52,11 @@
     (hg          . "default")
     (fossil      . "trunk")))
 
+(defun el-get-lock-load ()
+  (let ((file (expand-file-name el-get-lock-file)))
+    (when (file-exists-p file)
+      (load file))))
+
 (defun el-get-lock-save ()
   (with-temp-buffer
     (let ((indent-tabs-mode nil)
@@ -134,14 +139,6 @@
     ad-do-it))
 
 ;; commands
-
-;;;###autoload
-(defun el-get-lock-load ()
-  "Load `el-get-lock-file'."
-  (interactive)
-  (let ((file (expand-file-name el-get-lock-file)))
-    (when (file-exists-p file)
-      (load file))))
 
 ;;;###autoload
 (defun el-get-lock (&optional packages with-dependents)
