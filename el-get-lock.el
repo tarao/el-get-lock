@@ -45,6 +45,13 @@
 (defvar el-get-lock-locked-packages nil)
 (defvar el-get-lock-unlocked-packages nil)
 
+(defconst el-get-lock-default-branch-alist
+  '((git         . "master")
+    (github      . "master")
+    (emacsmirror . "master")
+    (hg          . "default")
+    (fossil      . "trunk")))
+
 (defun el-get-lock-save ()
   (with-temp-buffer
     (let ((indent-tabs-mode nil)
@@ -76,10 +83,24 @@
                             (assq name el-get-lock-package-versions)))))
     (if version (append version source) source)))
 
-(defun el-get-lock-wrap-packages (packages)
+(defun el-get-lock-use-master (package)
+  (let* ((source (if (listp package) package (el-get-package-def package)))
+         (type (el-get-package-type package))
+         (branch (or (plist-get source :branch)
+                     (cdr (assq type el-get-lock-default-branch-alist)))))
+    (if (and (not (or (plist-get source :checkout)
+                      (plist-get source :checksum)))
+             branch)
+        (list* :checkout branch source)
+      source)))
+
+(defun el-get-lock-wrap-packages (packages &optional fun)
+  ;; TODO dependents
   (let ((packages
-          (loop for p in packages when (listp p) append p else collect p)))
-    (append (mapcar #'el-get-lock-wrap-package packages) el-get-sources)))
+         (loop for p in packages when (listp p) append p else collect p)))
+    (append (mapcar (or fun #'el-get-lock-wrap-package) packages)
+            el-get-sources)))
+
 
 (defun el-get-lock-read-package-name (action)
   (let* ((packages (el-get-read-all-recipe-names))
@@ -103,9 +124,13 @@
   (let ((el-get-sources (el-get-lock-wrap-packages packages)))
     ad-do-it))
 
-(defadvice el-get-update (around el-get-lock-update-without-lock activate)
+(defadvice el-get-update (around el-get-lock-update-without-lock
+                                 (package) activate)
   "Disable the effect of `el-get-lock-install-with-lock' advice."
-  (let ((el-get-lock-package-versions nil))
+  (let ((el-get-lock-package-versions nil)
+        (el-get-sources
+         (el-get-lock-wrap-packages (list package) #'el-get-lock-use-master)))
+    (print el-get-sources)
     ad-do-it))
 
 ;; commands
