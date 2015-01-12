@@ -82,10 +82,7 @@
 (defun el-get-lock-wrap-package (package)
   (let* ((name (intern (el-get-source-name package)))
          (source (if (listp package) package (el-get-package-def package)))
-         (version (cdr (and (or (null el-get-lock-locked-packages)
-                                (memq name el-get-lock-locked-packages))
-                            (not (memq name el-get-lock-unlocked-packages))
-                            (assq name el-get-lock-package-versions)))))
+         (version (cdr (assq name el-get-lock-package-versions))))
     (if version (append version source) source)))
 
 (defun el-get-lock-use-master (package)
@@ -100,12 +97,17 @@
       source)))
 
 (defun el-get-lock-wrap-packages (packages &optional fun)
-  ;; TODO dependents
-  (let ((packages
-         (loop for p in packages when (listp p) append p else collect p)))
+  (let* ((locked-packages (el-get-dependencies el-get-lock-locked-packages))
+         (packages
+          (loop for p in packages when (listp p) append p else collect p))
+         (packages
+          (loop for p in (el-get-dependencies packages)
+                when (and (or (null locked-packages)
+                              (memq p locked-packages))
+                          (not (memq p el-get-lock-unlocked-packages)))
+                collect p)))
     (append (mapcar (or fun #'el-get-lock-wrap-package) packages)
             el-get-sources)))
-
 
 (defun el-get-lock-read-package-name (action)
   (let* ((packages (el-get-read-all-recipe-names))
@@ -132,33 +134,32 @@
 (defadvice el-get-update (around el-get-lock-update-without-lock
                                  (package) activate)
   "Disable the effect of `el-get-lock-install-with-lock' advice."
-  (let ((el-get-lock-package-versions nil)
-        (el-get-sources
-         (el-get-lock-wrap-packages (list package) #'el-get-lock-use-master)))
+  (let* ((el-get-lock-package-versions nil)
+         (package (if (stringp package) (intern package) package))
+         (el-get-sources
+          (el-get-lock-wrap-packages (list package) #'el-get-lock-use-master)))
     (print el-get-sources)
     ad-do-it))
 
 ;; commands
 
 ;;;###autoload
-(defun el-get-lock (&optional packages with-dependents)
+(defun el-get-lock (&optional packages)
   "Lock El-Get repository versions of PACKAGES.
 
 IF PACKAGES are specified, those PACKAGES are marked to be
 locked.  Otherwise, the all installed packages are locked.
 
-IF WITH-DEPENDENTS is non-nil, or the function is called
-interactively, packages depended by PACKAGES are also locked.
-These packages are marked \"automatically locked\" so that
-unlocking the depended package will unlock these packages too.
+Packages marked as locked and their dependent packages are locked
+to the version stored in `el-get-lock-file'.  When `el-get'
+installs a package for the first time, the repository version is
+saved to `el-get-lock-file'.  Next time you call `el-get' for the
+package, the repository version of the package is locked
+according to the value in the `el-get-lock-file'.
 
-When `el-get' installs a package for the first time, the
-repository version is saved to `el-get-lock-file'.  Next time you
-call `el-get' for the package, the repository version of the
-package is locked according to the value in the
-`el-get-lock-file'."
+Calling `el-get-update' for a package will change the stored
+value of `el-get-lock-file' to the latest version."
   (interactive (list (el-get-lock-read-package-name "Lock") t))
-  ;; TODO dependents
   (setq packages (el-get-as-list packages))
   (el-get-lock-load)
   (cond
@@ -193,10 +194,10 @@ unlocked.  Otherwise, the all installed packages are unlocked."
    (t
     (let ((locked-packages el-get-lock-locked-packages))
       (dolist (package packages)
-        (setq locked-packages
-              (delq package locked-packages))
+        (setq el-get-lock-locked-packages
+              (delq package el-get-lock-locked-packages))
         (add-to-list 'el-get-lock-unlocked-packages package))
-      (when (and el-get-locked-packages (null locked-packages))
+      (when (and locked-packages (null el-get-lock-locked-packages))
         ;; there is no package locked any more; unlock all
         (el-get-lock-unlock)))))
   (el-get-lock-save))
