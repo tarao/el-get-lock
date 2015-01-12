@@ -52,6 +52,9 @@
     (hg          . "default")
     (fossil      . "trunk")))
 
+(defconst el-get-lock-non-updatable-checksum-types
+  '(http ftp emacswiki))
+
 (defun el-get-lock-load ()
   (let ((file (expand-file-name el-get-lock-file)))
     (when (file-exists-p file)
@@ -101,13 +104,33 @@
          (packages
           (loop for p in packages when (listp p) append p else collect p))
          (packages
+          (mapcar #'(lambda (p) (if (stringp p) (intern p) p)) packages))
+         (packages
           (loop for p in (el-get-dependencies packages)
                 when (and (or (null locked-packages)
                               (memq p locked-packages))
                           (not (memq p el-get-lock-unlocked-packages)))
                 collect p)))
-    (append (mapcar (or fun #'el-get-lock-wrap-package) packages)
-            el-get-sources)))
+    (mapcar (or fun #'el-get-lock-wrap-package) packages)))
+
+(defmacro el-get-lock-with-wrapped-sources (args &rest body)
+  (declare (ident 1) (debug t))
+  (let ((ps (nth 0 args))
+        (fun (nth 1 args))
+        (filter (nth 2 args)))
+    `(let* ((ps (eval ',ps))
+            (ps
+             (mapcar #'(lambda (p) (if (stringp p) (intern p) p)) ps))
+            (ps (el-get-lock-wrap-packages ps (eval ',fun)))
+            (filter (eval ',filter))
+            (ps (if filter
+                    (loop for p in ps
+                          when (funcall filter p)
+                          collect p)
+                  ps))
+            (el-get-sources
+             (append ps el-get-sources)))
+       ,@body)))
 
 (defun el-get-lock-read-package-name (action)
   (let* ((packages (el-get-read-all-recipe-names))
@@ -118,28 +141,40 @@
 ;; integration
 
 (defun el-get-lock-track-installed-version (package)
-  (let* ((name (el-get-source-name package))
-         (checksum (el-get-checksum name))
+  (let* ((name (if (stringp package) package (el-get-source-name package)))
+         (checksum (ignore-errors (el-get-checksum name)))
          (version (and checksum (list :checksum checksum))))
     (when version (el-get-lock-save-package-version name version))))
 (add-hook 'el-get-post-install-hooks #'el-get-lock-track-installed-version)
 (add-hook 'el-get-post-update-hooks #'el-get-lock-track-installed-version)
 
-(defadvice el-get (around el-get-lock-install-with-lock
+(defadvice el-get (around el-get-lock-with-lock
                           (&optional sync &rest packages) activate)
   "Fix up PACKAGES to lock their repository versions."
-  (let ((el-get-sources (el-get-lock-wrap-packages packages)))
-    ad-do-it))
+  (el-get-lock-with-wrapped-sources (packages)
+     ad-do-it))
+
+(defadvice el-get-install (around el-get-lock-install-with-lock
+                                  (package) activate)
+  "Fix up PACKAGE to lock its repository versions."
+  (el-get-lock-with-wrapped-sources ((list package))
+     ad-do-it))
+
+(defadvice el-get-reinstall (around el-get-lock-reinstall-with-lock
+                                    (package) activate)
+  "Fix up PACKAGE to lock its repository versions."
+  (let ((filter #'(lambda (p)
+                    (not (memq (el-get-package-type p)
+                               el-get-lock-non-updatable-checksum-types)))))
+    (el-get-lock-with-wrapped-sources ((list package) nil filter)
+       ad-do-it)))
 
 (defadvice el-get-update (around el-get-lock-update-without-lock
                                  (package) activate)
   "Disable the effect of `el-get-lock-install-with-lock' advice."
-  (let* ((el-get-lock-package-versions nil)
-         (package (if (stringp package) (intern package) package))
-         (el-get-sources
-          (el-get-lock-wrap-packages (list package) #'el-get-lock-use-master)))
-    (print el-get-sources)
-    ad-do-it))
+  (let* ((el-get-lock-package-versions nil))
+    (el-get-lock-with-wrapped-sources ((list package) #'el-get-lock-use-master)
+       ad-do-it)))
 
 ;; commands
 
