@@ -144,7 +144,7 @@
 ;; commands
 
 ;;;###autoload
-(defun el-get-lock (&optional packages)
+(defun el-get-lock (&rest packages)
   "Lock El-Get repository versions of PACKAGES.
 
 IF PACKAGES are specified, those PACKAGES are marked to be
@@ -159,8 +159,9 @@ according to the value in the `el-get-lock-file'.
 
 Calling `el-get-update' for a package will change the stored
 value of `el-get-lock-file' to the latest version."
-  (interactive (list (el-get-lock-read-package-name "Lock") t))
-  (setq packages (el-get-as-list packages))
+  (interactive (list (el-get-lock-read-package-name "Lock")))
+  (setq packages
+        (loop for p in packages when (listp p) append p else collect p))
   (el-get-lock-load)
   (cond
    ;; lock all
@@ -178,13 +179,14 @@ value of `el-get-lock-file' to the latest version."
   (el-get-lock-save))
 
 ;;;###autoload
-(defun el-get-lock-unlock (&optional packages)
+(defun el-get-lock-unlock (&rest packages)
   "Unlock El-Get repository versions of PACKAGES.
 
 IF PACKAGES are specified, those PACKAGES are marked to be
 unlocked.  Otherwise, the all installed packages are unlocked."
   (interactive (list (el-get-lock-read-package-name "Unlock")))
-  (setq packages (el-get-as-list packages))
+  (setq packages
+        (loop for p in packages when (listp p) append p else collect p))
   (el-get-lock-load)
   (cond
    ((null packages)
