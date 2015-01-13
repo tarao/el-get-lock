@@ -132,8 +132,8 @@
              (append ps el-get-sources)))
        ,@body)))
 
-(defun el-get-lock-read-package-name (action)
-  (let* ((packages (el-get-read-all-recipe-names))
+(defun el-get-lock-read-package-name (action &optional candidates)
+  (let* ((packages (or candidates (el-get-read-all-recipe-names)))
          (package (completing-read (format "%s package (default: all): " action)
                                    packages nil t nil nil (list nil))))
     (if (stringp package) (intern package) package)))
@@ -238,6 +238,20 @@ unlocked.  Otherwise, the all installed packages are unlocked."
         ;; there is no package locked any more; unlock all
         (el-get-lock-unlock)))))
   (el-get-lock-save))
+
+;;;###autoload
+(defun el-get-lock-checkout (&rest packages)
+  "Checkout the locked version of packages."
+  (interactive (list (el-get-lock-read-package-name
+                      "Checkout"
+                      (el-get-list-package-names-with-status "installed"))))
+  (setq packages
+        (loop for p in packages when (listp p) append p else collect p))
+  (el-get-lock-load)
+  (if packages
+      (mapc 'el-get-reinstall packages)
+    (funcall 'el-get-lock-checkout
+             (el-get-list-package-names-with-status "installed"))))
 
 (provide 'el-get-lock)
 ;;; el-get-lock.el ends here
