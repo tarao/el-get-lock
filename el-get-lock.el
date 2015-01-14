@@ -182,8 +182,9 @@
 (defun el-get-lock (&rest packages)
   "Lock El-Get repository versions of PACKAGES.
 
-IF PACKAGES are specified, those PACKAGES are marked to be
-locked.  Otherwise, the all installed packages are locked.
+If PACKAGES are specified, those PACKAGES are marked to be
+locked.  Otherwise, the all installed packages and packages to be
+installed in future are locked.
 
 Packages marked as locked and their dependent packages are locked
 to the version stored in `el-get-lock-file'.  When `el-get'
@@ -217,7 +218,7 @@ value of `el-get-lock-file' to the latest version."
 (defun el-get-lock-unlock (&rest packages)
   "Unlock El-Get repository versions of PACKAGES.
 
-IF PACKAGES are specified, those PACKAGES are marked to be
+If PACKAGES are specified, those PACKAGES are marked to be
 unlocked.  Otherwise, the all installed packages are unlocked."
   (interactive (list (el-get-lock-read-package-name "Unlock")))
   (setq packages
@@ -241,7 +242,7 @@ unlocked.  Otherwise, the all installed packages are unlocked."
 
 ;;;###autoload
 (defun el-get-lock-checkout (&rest packages)
-  "Checkout the locked version of packages."
+  "Checkout the locked version of PACKAGES."
   (interactive (list (el-get-lock-read-package-name
                       "Checkout"
                       (el-get-list-package-names-with-status "installed"))))
