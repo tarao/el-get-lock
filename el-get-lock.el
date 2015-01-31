@@ -172,9 +172,8 @@
 (defadvice el-get-update (around el-get-lock-update-without-lock
                                  (package) activate)
   "Disable the effect of `el-get-lock-install-with-lock' advice."
-  (let* ((el-get-lock-package-versions nil))
-    (el-get-lock-with-wrapped-sources ((list package) #'el-get-lock-use-master)
-       ad-do-it)))
+  (el-get-lock-with-wrapped-sources ((list package) #'el-get-lock-use-master)
+     ad-do-it))
 
 ;; commands
 
