@@ -138,7 +138,7 @@ i.e., the latest version from a remote host get installed.
 Note that the first locked installation for a package of these types
 yields an error when the remote version gets newer than the locked
 version.  The only way to get rid of the error is to accept the latest
-version by `el-get-lock-checkout`.
+version by `el-get-reinstall`.
 
 ## Reference
 
