@@ -65,7 +65,12 @@
     (let ((indent-tabs-mode nil)
           (file (expand-file-name el-get-lock-file)))
       (pp `(setq el-get-lock-package-versions
-                 ',el-get-lock-package-versions)
+                 ',(loop for pair in el-get-lock-package-versions
+                         for p = (car-safe pair)
+                         when (and (or (null el-get-lock-locked-packages)
+                                       (memq p el-get-lock-locked-packages))
+                                   (not (memq p el-get-lock-unlocked-packages)))
+                         collect pair))
           (current-buffer))
       (pp `(setq el-get-lock-locked-packages
                  ',el-get-lock-locked-packages)
