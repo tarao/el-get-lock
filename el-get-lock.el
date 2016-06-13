@@ -153,6 +153,21 @@
 (add-hook 'el-get-post-install-hooks #'el-get-lock-track-installed-version)
 (add-hook 'el-get-post-update-hooks #'el-get-lock-track-installed-version)
 
+(defun el-get-lock-save-installed-checksum-to-status (package)
+  (let* ((name (if (stringp package) package (el-get-source-name package)))
+         (checksum (ignore-errors (el-get-checksum name)))
+         (recipe (el-get-package-def name))
+         (unlocked (memq (intern name) el-get-lock-unlocked-packages)))
+    (when (and checksum (not (plist-get recipe :checksum)) (not unlocked))
+      (setq recipe (plist-put recipe :checksum checksum)
+            recipe
+            (loop for (k v) on recipe by #'cddr
+                  unless (eq k :checkout)
+                  collect k and collect v))
+      (el-get-save-package-status name "installed" recipe))))
+(add-hook 'el-get-post-install-hooks #'el-get-lock-save-installed-checksum-to-status)
+(add-hook 'el-get-post-update-hooks #'el-get-lock-save-installed-checksum-to-status)
+
 (defadvice el-get (around el-get-lock-with-lock
                           (&optional sync &rest packages) activate)
   "Fix up PACKAGES to lock their repository versions."
