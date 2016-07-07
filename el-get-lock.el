@@ -52,8 +52,18 @@
     (hg          . "default")
     (fossil      . "trunk")))
 
+(defconst el-get-lock-branch-prefix-alist
+  '((git         . "origin/")
+    (github      . "origin/")
+    (emacsmirror . "origin/")))
+
 (defconst el-get-lock-non-updatable-checksum-types
   '(http ftp emacswiki))
+
+(defun el-get-lock-plist-remove (plist key)
+  (loop for (k v) on plist by #'cddr
+        unless (eq k key)
+        collect k and collect v))
 
 (defun el-get-lock-load ()
   (let ((file (expand-file-name el-get-lock-file)))
@@ -97,12 +107,14 @@
   (let* ((source (if (listp package) package (el-get-package-def package)))
          (type (el-get-package-type package))
          (branch (or (plist-get source :branch)
-                     (cdr (assq type el-get-lock-default-branch-alist)))))
-    (if (and (not (or (plist-get source :checkout)
-                      (plist-get source :checksum)))
-             branch)
-        (list* :checkout branch source)
-      source)))
+                     (cdr (assq type el-get-lock-default-branch-alist))))
+         (prefix (or (cdr (assq type el-get-lock-branch-prefix-alist)) "")))
+    (setq source (el-get-lock-plist-remove source :checksum))
+    (when (and branch (not (plist-get source :checkout)))
+      (unless (string-prefix-p prefix branch)
+        (setq branch (concat prefix branch)))
+      (setq source (plist-put source :checkout branch)))
+    source))
 
 (defun el-get-lock-wrap-packages (packages &optional fun)
   (let* ((locked-packages (el-get-dependencies el-get-lock-locked-packages))
@@ -160,10 +172,7 @@
          (unlocked (memq (intern name) el-get-lock-unlocked-packages)))
     (when (and checksum (not (plist-get recipe :checksum)) (not unlocked))
       (setq recipe (plist-put recipe :checksum checksum)
-            recipe
-            (loop for (k v) on recipe by #'cddr
-                  unless (eq k :checkout)
-                  collect k and collect v))
+            recipe (el-get-lock-plist-remove recipe :checkout))
       (el-get-save-package-status name "installed" recipe))))
 (add-hook 'el-get-post-install-hooks #'el-get-lock-save-installed-checksum-to-status)
 (add-hook 'el-get-post-update-hooks #'el-get-lock-save-installed-checksum-to-status)
